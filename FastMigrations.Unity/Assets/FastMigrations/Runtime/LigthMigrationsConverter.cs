@@ -22,44 +22,11 @@ namespace FastMigrations.Runtime
 
     internal delegate JObject MigrateMethod(JObject data);
 
-    /// <summary>
-    /// Thread safe JsonConverter who calls "Migrate_<see cref="MigratableAttribute.Version"/>(JObject data)" methods on objects marked with attribute <see cref="MigratableAttribute"/> on deserialization.
-    ///
-    /// All methods must have signature "private/protected static JObject Migrate_<see cref="MigratableAttribute.Version"/>(JObject data)".
-    ///
-    /// All methods will be called from current version to target version (inclusive).
-    /// </summary>
-    /// 
-    /// <remarks>
-    /// By default all classes have <see cref="MigratableAttribute.Version"/> 0.
-    /// You can mark all potentially migratable objects with <see cref="MigratableAttribute"/>.
-    /// </remarks>
-    ///
-    /// <example>
-    /// Methods you have to implement in your class:
-    /// <code>
-    /// [Migratable(1)]
-    /// public class YouObjectType
-    /// {
-    ///    private static JObject Migrate_1(JObject data)
-    ///    // OR
-    ///    protected static JObject Migrate_1(JObject data)
-    ///    // !public modifier is not allowed!
-    /// }
-    /// </code>
-    /// How to add migrator to JsonConverter:
-    /// <code>
-    /// var migrator = new FastMigrationsConverterMock(MigratorMissingMethodHandling.ThrowException);
-    /// var person = JsonConvert.DeserializeObject&lt;YouObjectType&gt;(json, migrator);
-    /// // OR
-    /// JsonConvert.DefaultSettings = () => new JsonSerializerSettings
-    /// {
-    ///     Converters = new List&lt;JsonConverter&gt; { new FastMigrationsConverter(MigratorMissingMethodHandling.ThrowException) }
-    /// };
-    /// </code>
-    /// </example>
-    ///
-    /// <exception cref="MigrationException">"Migrate_<see cref="MigratableAttribute.Version"/>(JObject data)" method doesn't exist on deserializable object</exception>
+    /*
+     * Operational complexity (Co) = ???
+     * Architectural complexity (Ca) = inputs + outputs + variables = ???
+     * Cognitive complexity = Co * Ca = ???
+     */
     public class FastMigrationsConverter : JsonConverter
     {
         public override bool CanRead => true;
@@ -70,9 +37,12 @@ namespace FastMigrations.Runtime
         private readonly ThreadLocal<HashSet<Type>> _migrationInProgress;
         private readonly IDictionary<Type, MigratableAttribute> _attributeByTypeCache;
         private readonly IDictionary<Type, IDictionary<int, MigrateMethod>> _migrateMethodsByType;
-
-        /// <param name="methodHandling">Variant of handling missing "Migrate_<see cref="MigratableAttribute.Version"/>(JObject data)" method</param>
-        /// <seealso cref="MigratorMissingMethodHandling"/>
+        
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         public FastMigrationsConverter(MigratorMissingMethodHandling methodHandling)
         {
             _migrationInProgress = new ThreadLocal<HashSet<Type>>(() => new HashSet<Type>());
@@ -82,6 +52,11 @@ namespace FastMigrations.Runtime
             _methodHandling = methodHandling;
         }
 
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         public override bool CanConvert(Type objectType)
         {
             MigratableAttribute attribute = GetMigratableAttribute(objectType, _attributeByTypeCache);
@@ -95,6 +70,11 @@ namespace FastMigrations.Runtime
             return !_migrationInProgress.Value.Contains(objectType);
         }
 
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
             Type valueType = value.GetType();
@@ -117,51 +97,63 @@ namespace FastMigrations.Runtime
             }
         }
 
+        /*
+         * Operational complexity = 12228
+         * Architectural complexity = inputs + outputs + variables = 4 + 1 + 4 + 9
+         * Cognitive complexity = Oc * Ac = 12228 * 9 = 100052
+         */
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
             JsonSerializer serializer)
         {
-            try
+            try // w = 2, if = 3 * (4074+2), W = 12228
             {
-                if (_migrationInProgress.Value.Contains(objectType))
-                    return existingValue;
+                if (_migrationInProgress.Value.Contains(objectType)) // w = 2, if = 3 * 3 = 9, func = 7, W = 2*(9+7) = 32
+                    return existingValue; // w = 3 * seq = 3
 
-                _migrationInProgress.Value.Add(objectType);
+                _migrationInProgress.Value.Add(objectType); // w = 2, seq = 1, func = 7, W = 2*(1+7)=16
 
-                var jObject = JObject.Load(reader);
+                var jObject = JObject.Load(reader); // w = 2, seq = 1, func = 7, W = 2*(1+7)=16
 
                 //don't try and repeat migration for objects serialized as refs to previous
-                if (jObject["$ref"] != null)
-                    return serializer.ReferenceResolver?.ResolveReference(serializer, (string)jObject["$ref"]);
+                if (jObject["$ref"] != null) // w = 2, if = 3 * 288 = 864, W = 2 * 864 = 1728                                                   
+                    if (serializer.ReferenceResolver != null) // w = 3, if = 3 * (28 + 4) = 96, W = 3 * 96 = 288
+                        return serializer.ReferenceResolver.ResolveReference(serializer, (string)jObject["$ref"]); // w = 4, func = 7, W = 28
+                    else
+                        return null; // w = 4, seq = 1, W = 4
 
-                int fromVersion = MigratorConstants.DefaultVersion;
+                int fromVersion = MigratorConstants.DefaultVersion; // w = 2, seq = 1, W = 2
 
-                if (jObject.ContainsKey(MigratorConstants.VersionJsonFieldName))
-                    fromVersion = jObject[MigratorConstants.VersionJsonFieldName].ToObject<int>();
+                if (jObject.ContainsKey(MigratorConstants.VersionJsonFieldName)) // w = 2, if = 3 * 24 = 72, func = 7, W = 2*(72+7) = 158
+                    fromVersion = jObject[MigratorConstants.VersionJsonFieldName].ToObject<int>(); // w = 3, seq = 1, func = 7, W = 3*(1+7)=24
 
-                var migratableAttribute = GetMigratableAttribute(objectType, _attributeByTypeCache);
-                uint toVersion = migratableAttribute.Version;
+                var migratableAttribute = GetMigratableAttribute(objectType, _attributeByTypeCache); // w = 2, seq = 1, func = 7, W = 2*(1+7)=16
+                uint toVersion = migratableAttribute.Version;                                        // w = 2, seq = 1, W = 2
 
-                if (toVersion + fromVersion != 0 && fromVersion != toVersion)
-                    jObject = RunMigrations(jObject, objectType, fromVersion, toVersion,
-                        _methodHandling);
+                if (toVersion + fromVersion != 0 && fromVersion != toVersion)                              // w = 2, if = 3 * 24 = 72, W = 2*72 = 144
+                    jObject = RunMigrations(jObject, objectType, fromVersion, toVersion, _methodHandling); // w = 3, seq = 1, func = 7, W = 3*(1+7)=24
 
-                if (existingValue != null && serializer.ObjectCreationHandling != ObjectCreationHandling.Replace)
+                if (existingValue != null && serializer.ObjectCreationHandling != ObjectCreationHandling.Replace) // w=2, if = 3 * 324 = 972, W = 972 * 2 = 1944
                 {
-                    using (JsonReader jObjReader = jObject.CreateReader())
+                    using (JsonReader jObjReader = jObject.CreateReader()) // w = 3, if = 3 * (32+4) = 108, W = 3 * 108 = 324
                     {
-                        serializer.Populate(jObjReader, existingValue);
-                        return existingValue;
+                        serializer.Populate(jObjReader, existingValue); // w = 4, seq, func, W = 4*(1+7)=32
+                        return existingValue; // w = 4, seq, W = 4
                     }
                 }
 
-                return jObject.ToObject(objectType, serializer);
+                return jObject.ToObject(objectType, serializer); // w = 2, seq = 1, func = 7, W = 2*(1+7)=16
             }
             finally
             {
-                _migrationInProgress.Value.Remove(objectType);
+                _migrationInProgress.Value.Remove(objectType); // w = 2, seq, W = 2
             }
         }
 
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         private JObject RunMigrations(JObject jObject, Type objectType, int fromVersion,
             uint toVersion, MigratorMissingMethodHandling methodHandling)
         {
@@ -192,6 +184,11 @@ namespace FastMigrations.Runtime
             return jObject;
         }
 
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         private static MigratableAttribute GetMigratableAttribute(Type objectType, IDictionary<Type, MigratableAttribute> cache)
         {
             if (cache.TryGetValue(objectType, out MigratableAttribute attribute))
@@ -202,6 +199,11 @@ namespace FastMigrations.Runtime
             return attribute;
         }
 
+        /*
+         * Operational complexity (Co) = ???
+         * Architectural complexity (Ca) = inputs + outputs + variables = ???
+         * Cognitive complexity = Co * Ca = ???
+         */
         private static MigrateMethod GetMigrateMethod(Type objectType, int version, IDictionary<Type, IDictionary<int, MigrateMethod>> cache)
         {
             if (!cache.TryGetValue(objectType, out IDictionary<int, MigrateMethod> methodsByVersion))
